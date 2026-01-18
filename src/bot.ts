@@ -1,7 +1,7 @@
 // src/bot.ts
 
 import { Telegraf, Markup } from "telegraf";
-import { registerSpecialist, specialistOffline, updateLocation } from "./api";
+import { api, registerSpecialist, specialistOffline, updateLocation } from "./api";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
@@ -23,7 +23,7 @@ bot.start(async (ctx) => {
 bot.hears("🟢 Я на смене", async (ctx) => {
   if (!ctx.from) return;
 
-//   await specialistOnline(ctx.from.id);
+  //   await specialistOnline(ctx.from.id);
 
   await ctx.reply(
     "Отправь свою геолокацию 📍",
@@ -61,4 +61,17 @@ bot.on("location", async (ctx) => {
   }
 });
 
+bot.on("callback_query", async (ctx) => {
+  const data = ctx.callbackQuery?.data;
 
+  if (data && data.startsWith("accept_")) {
+    const orderId = Number(data.replace("accept_", ""));
+
+    await api.post(`/order/${orderId}/assign`, {
+      telegramId: ctx.from.id,
+    });
+
+    await ctx.answerCbQuery("✅ Заказ принят!");
+    await ctx.reply("📦 Контакты клиента отправлены.");
+  }
+});
