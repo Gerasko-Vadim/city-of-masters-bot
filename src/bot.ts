@@ -3,6 +3,7 @@
 import { Telegraf, Markup } from "telegraf";
 import {
   api,
+  getOrdersNearby,
   registerSpecialist,
   specialistOffline,
   updateLocation,
@@ -59,11 +60,7 @@ bot.on("location", async (ctx) => {
       lng: longitude,
     });
 
-    const res = await api.get("order/nearby", {
-      params: { telegramId: ctx.from.id },
-    });
-
-    const orders = res.data;
+    const orders = await getOrdersNearby(ctx.from.id);
 
     if (!orders.length) {
       await ctx.reply("📭 Пока нет заказов рядом.");

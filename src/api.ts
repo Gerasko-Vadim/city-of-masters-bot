@@ -17,6 +17,13 @@ export async function registerSpecialist(data:{ telegramId: number; name: string
   await api.post('specialists/register', data);
 }
 
+export async function getOrdersNearby(telegramId: number) {
+  const response = await api.get('order/nearby', {
+    params: { telegramId },
+  });
+  return response.data;
+}
+
 export async function specialistOffline(telegramId: number) {
   await api.post('specialists/offline', { telegramId });
 }
