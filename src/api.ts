@@ -18,7 +18,7 @@ export async function registerSpecialist(data:{ telegramId: number; name: string
 }
 
 export async function getOrdersNearby(telegramId: number) {
-  const response = await api.get('order/nearby', {
+  const response = await api.get('specialists/orders/nearby', {
     params: { telegramId },
   });
   return response.data;
