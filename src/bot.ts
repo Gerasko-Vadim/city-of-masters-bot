@@ -59,10 +59,28 @@ bot.on("location", async (ctx) => {
       lng: longitude,
     });
 
-    await ctx.reply("✅ Локация получена. Ищу заказы рядом 📡");
+    const res = await api.get("/order/nearby", {
+      params: { telegramId: ctx.from.id },
+    });
+
+    const orders = res.data;
+
+    if (!orders.length) {
+      await ctx.reply("📭 Пока нет заказов рядом.");
+      return;
+    }
+
+    for (const order of orders) {
+      await ctx.reply(
+        `📦 Новый заказ рядом!\n\n👤 ${order.customerName}\n📞 ${order.phone}\n📍 ${order.address}\n💰 ${order.totalAmount}`,
+        Markup.inlineKeyboard([
+          Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
+        ])
+      );
+    }
   } catch (e) {
     console.error(e);
-    await ctx.reply("❌ Ошибка при сохранении локации. Попробуй ещё раз.");
+    await ctx.reply("❌ Ошибка при обработке локации.");
   }
 });
 
