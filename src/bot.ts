@@ -59,7 +59,7 @@ bot.on("location", async (ctx) => {
       lng: longitude,
     });
 
-    const res = await api.get("/order/nearby", {
+    const res = await api.get("order/nearby", {
       params: { telegramId: ctx.from.id },
     });
 
