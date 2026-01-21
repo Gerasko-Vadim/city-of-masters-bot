@@ -88,12 +88,26 @@ bot.on("callback_query", async (ctx) => {
     if (data && data.startsWith("accept_")) {
       const orderId = Number(data.replace("accept_", ""));
 
-      await api.post(`/order/${orderId}/assign`, {
-        telegramId: ctx.from.id,
-      });
+      try {
+        // Use new bot-specific endpoint (no JWT required)
+        await api.post(`/order/${orderId}/assign-bot`, {
+          telegramId: ctx.from.id,
+        });
 
-      await ctx.answerCbQuery("✅ Заказ принят!");
-      await ctx.reply("📦 Контакты клиента отправлены.");
+        await ctx.answerCbQuery("✅ Заказ принят!");
+        await ctx.reply("📦 Заказ закреплён за вами. Контакты клиента отправлены.");
+      } catch (error: any) {
+        console.error('Failed to assign order:', error.response?.data || error.message);
+        
+        const errorMessage = error.response?.data?.message || 
+                            error.response?.status === 409 
+                              ? "Заказ уже взял другой специалист" 
+                              : "Произошла ошибка";
+        
+        await ctx.answerCbQuery("❌ Не удалось принять заказ");
+        await ctx.reply(`❌ ${errorMessage}`);
+      }
     }
   }
 });
+
