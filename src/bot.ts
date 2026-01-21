@@ -22,7 +22,7 @@ bot.start(async (ctx) => {
 
   await ctx.reply(
     "Привет! Я бот City of Masters 👋\n\nНажми «Я на смене», чтобы получать заказы рядом с тобой.",
-    Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]]).resize()
+    Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]])
   );
 });
 
@@ -36,9 +36,9 @@ bot.hears("🟢 Я на смене", async (ctx) => {
     Markup.keyboard([
       [{ text: "📍 Отправить локацию", request_location: true }],
     ])
-      .resize()
       .oneTime()
   );
+
 });
 
 bot.hears("⛔ Я не на смене", async (ctx) => {
@@ -59,6 +59,9 @@ bot.on("location", async (ctx) => {
       lat: latitude,
       lng: longitude,
     });
+
+    // Remove the location request keyboard
+    await ctx.reply("🔍 Ищу заказы рядом...", Markup.removeKeyboard());
 
     const orders = await getOrdersNearby(ctx.from.id);
 
