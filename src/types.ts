@@ -11,6 +11,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   assignedSpecialistId?: number;
+  description?: string;
 }
 
 export interface Specialist {
@@ -26,6 +27,7 @@ export interface Specialist {
 export interface RegisterSpecialistDto {
   telegramId: number;
   name: string;
+  username?: string;
 }
 
 export interface UpdateLocationDto {

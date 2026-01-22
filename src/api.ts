@@ -25,4 +25,23 @@ export async function specialistOffline(telegramId: number): Promise<void> {
   await api.post('specialists/offline', { telegramId });
 }
 
+export async function getActiveOrder(
+  telegramId: number
+): Promise<Order | null> {
+  const response = await api.get<Order>('specialists/active-order', {
+    params: { telegramId },
+  });
+  return response.data || null;
+}
+
+export async function completeOrder(
+  orderId: number,
+  telegramId: number
+): Promise<Order> {
+  const response = await api.post<Order>(`order/${orderId}/complete-bot`, {
+    telegramId,
+  });
+  return response.data;
+}
+
 

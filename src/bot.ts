@@ -8,6 +8,7 @@ import {
   specialistOffline,
   updateLocation,
 } from "./api";
+import type { Order } from "./types";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
@@ -18,13 +19,15 @@ bot.start(async (ctx) => {
   await registerSpecialist({
     telegramId: ctx.from.id,
     name: ctx.from.first_name,
+    username: ctx.from.username,
   });
 
   await ctx.reply(
     "Привет! Я бот City of Masters 👋\n\nНажми «Я на смене», чтобы получать заказы рядом с тобой.",
-    Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]])
+    Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]]).resize()
   );
 });
+
 
 bot.hears("🟢 Я на смене", async (ctx) => {
   if (!ctx.from) return;
@@ -60,6 +63,27 @@ bot.on("location", async (ctx) => {
       lng: longitude,
     });
 
+    // Check for active order first
+    const activeOrderLine = await api
+      .get<Order>("specialists/active-order", {
+        params: { telegramId: ctx.from.id },
+      })
+      .then((res) => res.data)
+      .catch(() => null);
+
+    if (activeOrderLine) {
+      await ctx.reply(
+        `🚧 У вас уже есть активный заказ!\n\n📍 ${activeOrderLine.address}\nЗавершите его, прежде чем брать новые.`,
+        Markup.inlineKeyboard([
+          Markup.button.callback(
+            "✅ Завершить заказ",
+            `complete_${activeOrderLine.id}`
+          ),
+        ])
+      );
+      return;
+    }
+
     // Remove the location request keyboard
     await ctx.reply("🔍 Ищу заказы рядом...", Markup.removeKeyboard());
 
@@ -71,8 +95,15 @@ bot.on("location", async (ctx) => {
     }
 
     for (const order of orders) {
+      const maskedPhone =
+        order.phone.length > 3
+          ? order.phone.slice(0, -3) + "***"
+          : order.phone + "***";
+
       await ctx.reply(
-        `📦 Новый заказ рядом!\n\n👤 ${order.customerName}\n📞 ${order.phone}\n📍 ${order.address}\n💰 ${order.totalAmount}`,
+        `📦 Новый заказ рядом!\n\n📍 ${order.address}\n💰 Сумма: ${
+          order.totalAmount
+        }₽\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
         Markup.inlineKeyboard([
           Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
         ])
@@ -92,23 +123,65 @@ bot.on("callback_query", async (ctx) => {
       const orderId = Number(data.replace("accept_", ""));
 
       try {
-        // Use new bot-specific endpoint (no JWT required)
-        await api.post(`/order/${orderId}/assign-bot`, {
+        const res = await api.post<{
+          id: number;
+          address: string;
+          totalAmount: number;
+          description: string;
+          phone: string;
+          customerName: string;
+          lat: number;
+          lng: number;
+        }>(`/order/${orderId}/assign-bot`, {
           telegramId: ctx.from.id,
         });
+        const order = res.data;
 
         await ctx.answerCbQuery("✅ Заказ принят!");
-        await ctx.reply("📦 Заказ закреплён за вами. Контакты клиента отправлены.");
+
+        const dgisLink = `https://2gis.ru/geo/${order.lng},${order.lat}`;
+        const googleLink = `https://www.google.com/maps/search/?api=1&query=${order.lat},${order.lng}`;
+
+        await ctx.reply(
+          `✅ Вы приняли заказ!\n\n📍 ${order.address}\n💰 ${
+            order.totalAmount
+          }₽\n📝 ${order.description || "Без описания"}\n📞 ${order.phone}\n👤 ${
+            order.customerName
+          }\n\n🗺 Открыть карту:`,
+          Markup.inlineKeyboard([
+            [Markup.button.url("Google Maps", googleLink)],
+            [Markup.button.url("2GIS", dgisLink)],
+            [Markup.button.callback("✅ Завершить заказ", `complete_${order.id}`)],
+          ])
+        );
       } catch (error: any) {
-        console.error('Failed to assign order:', error.response?.data || error.message);
-        
-        const errorMessage = error.response?.data?.message || 
-                            error.response?.status === 409 
-                              ? "Заказ уже взял другой специалист" 
-                              : "Произошла ошибка";
-        
-        await ctx.answerCbQuery("❌ Не удалось принять заказ");
+        console.error(
+          "Failed to assign order:",
+          error.response?.data || error.message
+        );
+        const errorMessage =
+          error.response?.data?.message || "Не удалось принять заказ";
+        await ctx.answerCbQuery("❌ Ошибка");
         await ctx.reply(`❌ ${errorMessage}`);
+      }
+    } else if (data && data.startsWith("complete_")) {
+      const orderId = Number(data.replace("complete_", ""));
+      try {
+        await api.post(`/order/${orderId}/complete-bot`, {
+          telegramId: ctx.from.id,
+        });
+        await ctx.answerCbQuery("✅ Заказ завершен!");
+        await ctx.reply(
+          "🎉 Заказ успешно завершен! Вы можете искать новые заказы.",
+          Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]]) // Restore main menu
+        );
+      } catch (error: any) {
+         console.error(
+          "Failed to complete order:",
+          error.response?.data || error.message
+        );
+        await ctx.answerCbQuery("❌ Ошибка");
+        await ctx.reply("❌ Не удалось завершить заказ.");
       }
     }
   }
