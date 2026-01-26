@@ -12,6 +12,13 @@ import type { Order } from "./types";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
+// Configure commands and menu button
+bot.telegram.setMyCommands([
+  { command: "start", description: "Запустить бота 🚀" },
+]);
+
+bot.telegram.setChatMenuButton({ menuButton: { type: "commands" } });
+
 // /start
 bot.start(async (ctx) => {
   if (!ctx.from) return;
@@ -22,9 +29,21 @@ bot.start(async (ctx) => {
     username: ctx.from.username,
   });
 
-  await ctx.reply(
-    "Привет! Я бот City of Masters 👋\n\nНажми «Я на смене», чтобы получать заказы рядом с тобой.",
-    Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]]).resize()
+  const welcomeMessage = `
+<b>Что умеет этот бот?</b>
+Бот <b>City of Masters</b> находит заказы от потенциальных клиентов в режиме реального времени.
+
+Просто нажми «<b>🟢 Я на смене</b>», отправь свою локацию — и получай релевантные заказы рядом с тобой. Не нужно мониторить чаты и группы, мы сделаем это за тебя.
+
+Даже если в описании заказа есть опечатки, наша система все равно его найдет 👌
+
+🤖 <b>Bonus:</b> благодаря встроенным алгоритмам мы фильтруем нерелевантные запросы с высокой точностью.
+
+<i>Чтобы начать получать заказы, нажми кнопку ниже:</i>`;
+
+  await ctx.replyWithHTML(
+    welcomeMessage,
+    Markup.keyboard(["🟢 Я на смене", "⛔ Я не на смене"]).resize()
   );
 });
 
@@ -39,6 +58,7 @@ bot.hears("🟢 Я на смене", async (ctx) => {
     Markup.keyboard([
       [{ text: "📍 Отправить локацию", request_location: true }],
     ])
+      .resize()
       .oneTime()
   );
 
@@ -49,6 +69,52 @@ bot.hears("⛔ Я не на смене", async (ctx) => {
 
   await specialistOffline(ctx.from.id);
   await ctx.reply("⛔ Ты снят со смены. Заказы приходить не будут.");
+});
+
+async function sendNearbyOrders(ctx: any, telegramId: number) {
+  try {
+    const orders = await getOrdersNearby(telegramId);
+
+    if (!orders.length) {
+      await ctx.reply("📭 Пока нет заказов рядом.");
+      return;
+    }
+
+    for (const order of orders) {
+      const maskedPhone =
+        order.phone.length > 3
+          ? order.phone.slice(0, -3) + "***"
+          : order.phone + "***";
+
+      await ctx.reply(
+        `📦 Новый заказ рядом!\n\n📍 ${order.address}\n💰 Сумма: ${
+          order.totalAmount
+        }₽\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
+        Markup.inlineKeyboard([
+          Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
+        ])
+      );
+    }
+  } catch (e) {
+    console.error(e);
+    await ctx.reply("❌ Ошибка при поиске заказов.");
+  }
+}
+
+bot.on("text", async (ctx) => {
+  if (!ctx.from || !ctx.message.text || ctx.message.text.startsWith("/")) return;
+
+  try {
+    // If it's one of the keyboard buttons, skip (handled by bot.hears)
+    if (["🟢 Я на смене", "⛔ Я не на смене"].includes(ctx.message.text)) return;
+
+    await api.post("/chat/specialist-send", {
+      telegramId: ctx.from.id,
+      text: ctx.message.text,
+    });
+  } catch (e) {
+    // Silent fail if no active order
+  }
 });
 
 bot.on("location", async (ctx) => {
@@ -86,29 +152,7 @@ bot.on("location", async (ctx) => {
 
     // Remove the location request keyboard
     await ctx.reply("🔍 Ищу заказы рядом...", Markup.removeKeyboard());
-
-    const orders = await getOrdersNearby(ctx.from.id);
-
-    if (!orders.length) {
-      await ctx.reply("📭 Пока нет заказов рядом.");
-      return;
-    }
-
-    for (const order of orders) {
-      const maskedPhone =
-        order.phone.length > 3
-          ? order.phone.slice(0, -3) + "***"
-          : order.phone + "***";
-
-      await ctx.reply(
-        `📦 Новый заказ рядом!\n\n📍 ${order.address}\n💰 Сумма: ${
-          order.totalAmount
-        }₽\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
-        Markup.inlineKeyboard([
-          Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
-        ])
-      );
-    }
+    await sendNearbyOrders(ctx, ctx.from.id);
   } catch (e) {
     console.error(e);
     await ctx.reply("❌ Ошибка при обработке локации.");
@@ -172,9 +216,10 @@ bot.on("callback_query", async (ctx) => {
         });
         await ctx.answerCbQuery("✅ Заказ завершен!");
         await ctx.reply(
-          "🎉 Заказ успешно завершен! Вы можете искать новые заказы.",
-          Markup.keyboard([["🟢 Я на смене"], ["⛔ Я не на смене"]]) // Restore main menu
+          "🎉 Заказ успешно завершен! Ищу новые заказы рядом...",
+          Markup.keyboard(["🟢 Я на смене", "⛔ Я не на смене"]).resize()
         );
+        await sendNearbyOrders(ctx, ctx.from.id);
       } catch (error: any) {
          console.error(
           "Failed to complete order:",
