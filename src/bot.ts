@@ -45,14 +45,14 @@ bot.start(async (ctx) => {
 
   await ctx.replyWithHTML(
     welcomeMessage,
-    Markup.keyboard([["Старт"]]).resize().oneTime()
+    Markup.keyboard([
+      [{ text: "Старт", request_location: true }],
+    ]).resize().oneTime()
   );
 });
 
-bot.hears(["Старт", "🟢 Я на смене"], async (ctx) => {
+bot.hears(["🟢 Я на смене"], async (ctx) => {
   if (!ctx.from) return;
-
-  //   await specialistOnline(ctx.from.id);
 
   await ctx.reply(
     "Отправь свою геолокацию 📍",
@@ -64,13 +64,15 @@ bot.hears(["Старт", "🟢 Я на смене"], async (ctx) => {
   );
 });
 
-bot.hears(["⛔ Я не на смене", "/stop"], async (ctx) => {
+bot.hears(["⛔ Выйти со смены", "⛔ Я не на смене", "/stop"], async (ctx) => {
   if (!ctx.from) return;
 
   await specialistOffline(ctx.from.id);
   await ctx.reply(
     "⛔ Ты снят со смены. Заказы приходить не будут.",
-    Markup.keyboard(["🟢 Я на смене"]).resize()
+    Markup.keyboard([
+      [{ text: "Старт", request_location: true }],
+    ]).resize()
   );
 });
 
@@ -153,10 +155,13 @@ bot.on("location", async (ctx) => {
       return;
     }
 
-    // Restore the main menu keyboard
+    // Persistent menu for shift management
     await ctx.reply(
       "🔍 Ищу заказы рядом...",
-      Markup.keyboard(["🟢 Я на смене", "⛔ Я не на смене"]).resize()
+      Markup.keyboard([
+        [{ text: "🔄 Обновить заказы", request_location: true }],
+        ["⛔ Выйти со смены"]
+      ]).resize()
     );
     await sendNearbyOrders(ctx, ctx.from.id);
   } catch (e) {
