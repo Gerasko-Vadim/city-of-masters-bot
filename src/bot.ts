@@ -15,6 +15,7 @@ export const bot = new Telegraf(process.env.BOT_TOKEN!);
 // Configure commands and menu button
 bot.telegram.setMyCommands([
   { command: "start", description: "Запустить бота 🚀" },
+  { command: "stop", description: "Завершить смену ⛔" },
 ]);
 
 bot.telegram.setChatMenuButton({ menuButton: { type: "commands" } });
@@ -31,24 +32,24 @@ bot.start(async (ctx) => {
 
   const welcomeMessage = `
 <b>Что умеет этот бот?</b>
-Бот <b>City of Masters</b> находит заказы от потенциальных клиентов в режиме реального времени.
+Бот находит заявки от потенциальных клиентов в режиме реального времени.
 
-Просто нажми «<b>🟢 Я на смене</b>», отправь свою локацию — и получай релевантные заказы рядом с тобой. Не нужно мониторить чаты и группы, мы сделаем это за тебя.
+Выбери сферу, город — и получай релевантные заявки клиентов из всех чатов в личку.
+Не нужно мониторить чаты, думать про ключевые слова и пробираться сквозь инфо-шум. Мы все это сделаем за тебя.
 
-Даже если в описании заказа есть опечатки, наша система все равно его найдет 👌
+Даже если клиент опечатался или неясно выразился, мы все равно его поймаем 👌
 
-🤖 <b>Bonus:</b> благодаря встроенным алгоритмам мы фильтруем нерелевантные запросы с высокой точностью.
+🤖 <b>Bonus:</b> благодаря нейронке мы фильтруем не релевантные запросы с точностью до 98%.
 
-<i>Чтобы начать получать заказы, нажми кнопку ниже:</i>`;
+👇 <i>Чтобы использовать бота, нажмите кнопку ниже:</i>`;
 
   await ctx.replyWithHTML(
     welcomeMessage,
-    Markup.keyboard(["🟢 Я на смене", "⛔ Я не на смене"]).resize()
+    Markup.keyboard([["Старт"]]).resize().oneTime()
   );
 });
 
-
-bot.hears("🟢 Я на смене", async (ctx) => {
+bot.hears(["Старт", "🟢 Я на смене"], async (ctx) => {
   if (!ctx.from) return;
 
   //   await specialistOnline(ctx.from.id);
@@ -61,14 +62,16 @@ bot.hears("🟢 Я на смене", async (ctx) => {
       .resize()
       .oneTime()
   );
-
 });
 
-bot.hears("⛔ Я не на смене", async (ctx) => {
+bot.hears(["⛔ Я не на смене", "/stop"], async (ctx) => {
   if (!ctx.from) return;
 
   await specialistOffline(ctx.from.id);
-  await ctx.reply("⛔ Ты снят со смены. Заказы приходить не будут.");
+  await ctx.reply(
+    "⛔ Ты снят со смены. Заказы приходить не будут.",
+    Markup.keyboard(["🟢 Я на смене"]).resize()
+  );
 });
 
 async function sendNearbyOrders(ctx: any, telegramId: number) {
@@ -150,8 +153,11 @@ bot.on("location", async (ctx) => {
       return;
     }
 
-    // Remove the location request keyboard
-    await ctx.reply("🔍 Ищу заказы рядом...", Markup.removeKeyboard());
+    // Restore the main menu keyboard
+    await ctx.reply(
+      "🔍 Ищу заказы рядом...",
+      Markup.keyboard(["🟢 Я на смене", "⛔ Я не на смене"]).resize()
+    );
     await sendNearbyOrders(ctx, ctx.from.id);
   } catch (e) {
     console.error(e);
