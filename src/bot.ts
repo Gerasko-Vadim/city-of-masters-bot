@@ -45,9 +45,7 @@ bot.start(async (ctx) => {
 
   await ctx.replyWithHTML(
     welcomeMessage,
-    Markup.keyboard([
-      [{ text: "🟢 Я на смене", request_location: true }],
-    ]).resize().oneTime()
+    Markup.keyboard([["🟢 Я на смене"]]).resize().oneTime()
   );
 });
 
@@ -55,7 +53,7 @@ bot.hears(["🟢 Я на смене"], async (ctx) => {
   if (!ctx.from) return;
 
   await ctx.reply(
-    "Отправь свою геолокацию 📍",
+    "Чтобы найти заказы рядом, мне нужно знать, где вы находитесь. Пожалуйста, отправьте свою локацию 📍",
     Markup.keyboard([
       [{ text: "📍 Отправить локацию", request_location: true }],
     ])
@@ -70,9 +68,7 @@ bot.hears(["⛔ Выйти со смены", "⛔ Я не на смене", "/st
   await specialistOffline(ctx.from.id);
   await ctx.reply(
     "⛔ Ты снят со смены. Заказы приходить не будут.",
-    Markup.keyboard([
-      [{ text: "🟢 Я на смене", request_location: true }],
-    ]).resize()
+    Markup.keyboard([["🟢 Я на смене"]]).resize()
   );
 });
 
