@@ -88,12 +88,15 @@ async function sendNearbyOrders(ctx: any, telegramId: number) {
           : order.phone + "***";
 
       await ctx.reply(
-        `📦 Новый заказ рядом!\n\n📍 ${order.address}\n💰 Сумма: ${
+        `📦 <b>Новый заказ рядом!</b>\n\n📍 ${order.address}\n💰 ${
           order.totalAmount
-        }₽\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
-        Markup.inlineKeyboard([
-          Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
-        ])
+        } сом\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([
+            Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
+          ]),
+        }
       );
     }
   } catch (e) {
@@ -194,16 +197,19 @@ bot.on("callback_query", async (ctx) => {
         const googleLink = `https://www.google.com/maps/search/?api=1&query=${order.lat},${order.lng}`;
 
         await ctx.reply(
-          `✅ Вы приняли заказ!\n\n📍 ${order.address}\n💰 ${
+          `✅ <b>Вы приняли заказ!</b>\n\n📍 ${order.address}\n💰 ${
             order.totalAmount
-          }₽\n📝 ${order.description || "Без описания"}\n📞 ${order.phone}\n👤 ${
+          } сом\n📝 ${order.description || "Без описания"}\n📞 ${order.phone}\n👤 ${
             order.customerName
-          }\n\n🗺 Открыть карту:`,
-          Markup.inlineKeyboard([
-            [Markup.button.url("Google Maps", googleLink)],
-            [Markup.button.url("2GIS", dgisLink)],
-            [Markup.button.callback("✅ Завершить заказ", `complete_${order.id}`)],
-          ])
+          }\n\n🗺 <b>Открыть карту:</b>`,
+          {
+            parse_mode: "HTML",
+            ...Markup.inlineKeyboard([
+              [Markup.button.url("Google Maps", googleLink)],
+              [Markup.button.url("2GIS", dgisLink)],
+              [Markup.button.callback("✅ Завершить заказ", `complete_${order.id}`)],
+            ]),
+          }
         );
       } catch (error: any) {
         console.error(
@@ -235,6 +241,9 @@ bot.on("callback_query", async (ctx) => {
         await ctx.answerCbQuery("❌ Ошибка");
         await ctx.reply("❌ Не удалось завершить заказ.");
       }
+    } else if (data && data.startsWith("skip_")) {
+      await ctx.answerCbQuery("❌ Пропущено");
+      await ctx.deleteMessage().catch(() => {});
     }
   }
 });
