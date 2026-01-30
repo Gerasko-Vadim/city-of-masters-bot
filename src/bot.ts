@@ -46,7 +46,7 @@ bot.start(async (ctx) => {
   await ctx.replyWithHTML(
     welcomeMessage,
     Markup.keyboard([
-      [{ text: "Старт", request_location: true }],
+      [{ text: "🟢 Я на смене", request_location: true }],
     ]).resize().oneTime()
   );
 });
@@ -71,7 +71,7 @@ bot.hears(["⛔ Выйти со смены", "⛔ Я не на смене", "/st
   await ctx.reply(
     "⛔ Ты снят со смены. Заказы приходить не будут.",
     Markup.keyboard([
-      [{ text: "Старт", request_location: true }],
+      [{ text: "🟢 Я на смене", request_location: true }],
     ]).resize()
   );
 });
