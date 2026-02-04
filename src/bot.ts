@@ -4,6 +4,7 @@ import { Telegraf, Markup } from "telegraf";
 import {
   api,
   getOrdersNearby,
+  getAllOrders,
   registerSpecialist,
   specialistOffline,
   updateLocation,
@@ -72,31 +73,62 @@ bot.hears(["⛔ Выйти со смены", "⛔ Я не на смене", "/st
   );
 });
 
-async function sendNearbyOrders(ctx: any, telegramId: number) {
+async function sendNearbyOrders(ctx: any, telegramId: number, radius = 5, isAll = false) {
   try {
-    const orders = await getOrdersNearby(telegramId);
+    const orders = isAll ? await getAllOrders(telegramId) : await getOrdersNearby(telegramId, radius);
 
     if (!orders.length) {
-      await ctx.reply("📭 Пока нет заказов рядом.");
+      if (!isAll && radius < 10) {
+        await ctx.reply(
+          "📭 В радиусе 5 км заказов не найдено. Хотите расширить поиск?",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("🔍 Искать в радиусе 10 км", "radius_10")],
+            [Markup.button.callback("🌐 Показать все заказы", "view_all")],
+          ])
+        );
+      } else {
+        await ctx.reply("📭 Пока нет доступных заказов.");
+      }
       return;
     }
 
+    const title = isAll ? "🌐 Все доступные заказы" : `📦 Заказы в радиусе ${radius} км`;
+    await ctx.reply(`<b>${title}:</b>`, { parse_mode: "HTML" });
+
     for (const order of orders) {
+      const distanceMsg = order.distance !== undefined ? `\n🏃‍♂️ Расстояние: ${order.distance.toFixed(1)} км` : "";
       const maskedPhone =
         order.phone.length > 3
           ? order.phone.slice(0, -3) + "***"
           : order.phone + "***";
 
+      // If distance > 15km and we are in "view all" mode, don't show accept button
+      const canAccept = !isAll || (order.distance !== undefined && order.distance <= 15);
+
+      const buttons = [];
+      if (canAccept) {
+        buttons.push([Markup.button.callback("✅ Принять заказ", `accept_${order.id}`)]);
+      } else {
+        buttons.push([Markup.button.callback("📍 Слишком далеко", "noop")]);
+      }
+
       await ctx.reply(
-        `📦 <b>Новый заказ рядом!</b>\n\n📍 ${order.address}\n💰 ${
+        `📍 ${order.address}${distanceMsg}\n💰 ${
           order.totalAmount
         } сом\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
         {
           parse_mode: "HTML",
-          ...Markup.inlineKeyboard([
-            Markup.button.callback("✅ Принять заказ", `accept_${order.id}`),
-          ]),
+          ...Markup.inlineKeyboard(buttons),
         }
+      );
+    }
+
+    if (!isAll && radius === 5 && orders.length > 0) {
+      await ctx.reply(
+        "Хотите увидеть больше?",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("🌐 Показать все заказы", "view_all")],
+        ])
       );
     }
   } catch (e) {
@@ -110,7 +142,7 @@ bot.on("text", async (ctx) => {
 
   try {
     // If it's one of the keyboard buttons, skip (handled by bot.hears)
-    if (["🟢 Я на смене", "⛔ Я не на смене"].includes(ctx.message.text)) return;
+    if (["🟢 Я на смене", "⛔ Я не на смене", "⛔ Выйти со смены"].includes(ctx.message.text)) return;
 
     await api.post("/chat/specialist-send", {
       telegramId: ctx.from.id,
@@ -169,6 +201,22 @@ bot.on("location", async (ctx) => {
   }
 });
 
+bot.action("radius_10", async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.editMessageReplyMarkup(undefined);
+  await sendNearbyOrders(ctx, ctx.from!.id, 10);
+});
+
+bot.action("view_all", async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.editMessageReplyMarkup(undefined);
+  await sendNearbyOrders(ctx, ctx.from!.id, 1000, true);
+});
+
+bot.action("noop", async (ctx) => {
+  await ctx.answerCbQuery("📍 Этот заказ находится слишком далеко", { show_alert: true });
+});
+
 bot.on("callback_query", async (ctx) => {
   if ("data" in ctx.callbackQuery) {
     const data = ctx.callbackQuery.data;
@@ -187,7 +235,7 @@ bot.on("callback_query", async (ctx) => {
           lat: number;
           lng: number;
         }>(`/order/${orderId}/assign-bot`, {
-          telegramId: ctx.from.id,
+          telegramId: ctx.from!.id,
         });
         const order = res.data;
 

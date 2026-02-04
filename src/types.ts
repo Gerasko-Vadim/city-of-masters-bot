@@ -12,6 +12,7 @@ export interface Order {
   updatedAt: string;
   assignedSpecialistId?: number;
   description?: string;
+  distance?: number;
 }
 
 export interface Specialist {

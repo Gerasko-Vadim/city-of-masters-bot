@@ -14,9 +14,19 @@ export async function registerSpecialist(data: RegisterSpecialistDto): Promise<v
   await api.post('specialists/register', data);
 }
 
-export async function getOrdersNearby(telegramId: number): Promise<Order[]> {
+export async function getOrdersNearby(
+  telegramId: number,
+  radius?: number
+): Promise<Order[]> {
   const response = await api.get<Order[]>('specialists/orders/nearby', {
-    params: { telegramId },
+    params: { telegramId, radius },
+  });
+  return response.data;
+}
+
+export async function getAllOrders(telegramId: number): Promise<Order[]> {
+  const response = await api.get<Order[]>('specialists/orders/nearby', {
+    params: { telegramId, radius: 1000 }, // Large radius to get all
   });
   return response.data;
 }
