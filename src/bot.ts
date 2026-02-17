@@ -83,6 +83,19 @@ bot.hears(["🟢 Я на смене"], async (ctx) => {
   );
 });
 
+bot.action("go_on_shift", async (ctx) => {
+  if (!ctx.from) return;
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    "Чтобы найти заказы рядом, мне нужно знать, где вы находитесь. Пожалуйста, отправьте свою локацию 📍",
+    Markup.keyboard([
+      [{ text: "📍 Отправить локацию", request_location: true }],
+    ])
+      .resize()
+      .oneTime()
+  );
+});
+
 bot.hears(["⛔ Выйти со смены", "⛔ Я не на смене", "/stop"], async (ctx) => {
   if (!ctx.from) return;
 
