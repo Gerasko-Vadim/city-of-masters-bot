@@ -8,10 +8,30 @@ import {
   registerSpecialist,
   specialistOffline,
   updateLocation,
+  getSpecialistStatus,
 } from "./api";
 import type { Order } from "./types";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
+
+// Global Ban Check Middleware
+bot.use(async (ctx, next) => {
+  if (!ctx.from || !ctx.from.id) return next();
+
+  try {
+    const status = await getSpecialistStatus(ctx.from.id);
+    if (status?.isBanned) {
+      if (ctx.callbackQuery) {
+        await ctx.answerCbQuery("❌ Ваш аккаунт заблокирован", { show_alert: true });
+      }
+      return ctx.reply("❌ Ваш аккаунт заблокирован. Вы не можете пользоваться ботом.");
+    }
+  } catch (e) {
+    console.error("Ban check failed:", e);
+  }
+
+  return next();
+});
 
 // Configure commands and menu button
 bot.telegram.setMyCommands([
@@ -25,15 +45,11 @@ bot.telegram.setChatMenuButton({ menuButton: { type: "commands" } });
 bot.start(async (ctx) => {
   if (!ctx.from) return;
 
-  const specialist = await registerSpecialist({
+  await registerSpecialist({
     telegramId: ctx.from.id,
     name: ctx.from.first_name,
     username: ctx.from.username,
-  }) as any;
-
-  if (specialist?.isBanned) {
-    return ctx.reply("❌ Ваш аккаунт заблокирован. Вы не можете пользоваться ботом.");
-  }
+  });
 
   const welcomeMessage = `
 <b>Что умеет этот бот?</b>
