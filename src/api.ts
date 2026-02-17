@@ -10,8 +10,9 @@ export async function updateLocation(data: UpdateLocationDto): Promise<void> {
   await api.post('specialists/location', data);
 }
 
-export async function registerSpecialist(data: RegisterSpecialistDto): Promise<void> {
-  await api.post('specialists/register', data);
+export async function registerSpecialist(data: RegisterSpecialistDto): Promise<any> {
+  const res = await api.post('specialists/register', data);
+  return res.data;
 }
 
 export async function getOrdersNearby(

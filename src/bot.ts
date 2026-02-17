@@ -25,11 +25,15 @@ bot.telegram.setChatMenuButton({ menuButton: { type: "commands" } });
 bot.start(async (ctx) => {
   if (!ctx.from) return;
 
-  await registerSpecialist({
+  const specialist = await registerSpecialist({
     telegramId: ctx.from.id,
     name: ctx.from.first_name,
     username: ctx.from.username,
-  });
+  }) as any;
+
+  if (specialist?.isBanned) {
+    return ctx.reply("❌ Ваш аккаунт заблокирован. Вы не можете пользоваться ботом.");
+  }
 
   const welcomeMessage = `
 <b>Что умеет этот бот?</b>
