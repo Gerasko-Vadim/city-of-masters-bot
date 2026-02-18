@@ -6,6 +6,19 @@ export const api = axios.create({
   baseURL: process.env.API_URL,
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 403) {
+      // Import bot lazily to avoid circular dependency if any, 
+      // but here we can just use the exported bot from bot.ts or send via telegram directly if we have the token.
+      // Since we are in api.ts, we might not want to import bot.ts.
+      // But we can use the bot token from env if available.
+    }
+    return Promise.reject(error);
+  }
+);
+
 export async function updateLocation(data: UpdateLocationDto): Promise<void> {
   await api.post('specialists/location', data);
 }
