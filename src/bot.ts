@@ -50,26 +50,47 @@ bot.start(async (ctx) => {
 bot.hears(["🟢 Я на смене"], async (ctx) => {
   if (!ctx.from) return;
 
-  await ctx.reply(
-    "Чтобы найти заказы рядом, мне нужно знать, где вы находитесь. Пожалуйста, отправьте свою локацию 📍",
+  const message = `
+📍 <b>Чтобы найти заказы рядом, нужно отправить локацию</b>
+
+Для стабильной работы мы рекомендуем включить <b>автоматическое обновление</b>:
+1️⃣ Нажмите на иконку скрепки 📎 (или ➕)
+2️⃣ Выберите <b>«Геопозиция»</b> 📍
+3️⃣ Нажмите <b>«Транслировать мою геопозицию»</b>
+4️⃣ Выберите <b>«8 часов»</b>
+
+<i>Так вы будете получать новые заказы автоматически, даже если телефон в кармане!</i> 👇
+  `;
+
+  await ctx.replyWithHTML(
+    message,
     Markup.keyboard([
-      [{ text: "📍 Отправить локацию", request_location: true }],
-    ])
-      .resize()
-      .oneTime()
+      [{ text: "📍 Отправить локацию (один раз)", request_location: true }],
+    ]).resize().oneTime()
   );
 });
 
 bot.action("go_on_shift", async (ctx) => {
   if (!ctx.from) return;
   await ctx.answerCbQuery();
-  await ctx.reply(
-    "Чтобы найти заказы рядом, мне нужно знать, где вы находитесь. Пожалуйста, отправьте свою локацию 📍",
+  
+  const message = `
+📍 <b>Чтобы найти заказы рядом, нужно отправить локацию</b>
+
+Для стабильной работы мы рекомендуем включить <b>автоматическое обновление</b>:
+1️⃣ Нажмите на иконку скрепки 📎 (или ➕)
+2️⃣ Выберите <b>«Геопозиция»</b> 📍
+3️⃣ Нажмите <b>«Транслировать мою геопозицию»</b>
+4️⃣ Выберите <b>«8 часов»</b>
+
+<i>Так вы будете получать новые заказы автоматически, даже если телефон в кармане!</i> 👇
+  `;
+
+  await ctx.replyWithHTML(
+    message,
     Markup.keyboard([
-      [{ text: "📍 Отправить локацию", request_location: true }],
-    ])
-      .resize()
-      .oneTime()
+      [{ text: "📍 Отправить локацию (один раз)", request_location: true }],
+    ]).resize().oneTime()
   );
 });
 
@@ -196,18 +217,29 @@ bot.on("location", async (ctx) => {
       return;
     }
 
-    // Persistent menu for shift management
-    await ctx.reply(
-      "🔍 Ищу заказы рядом...",
-      Markup.keyboard([
-        [{ text: "🔄 Обновить заказы", request_location: true }],
-        ["⛔ Выйти со смены"]
-      ]).resize()
-    );
-    await sendNearbyOrders(ctx, ctx.from.id);
+    // Persistent menu for shift management (only sent if not already showing the search message recently)
+    // For live location updates, we don't want to spam messages.
+    // We only reply if it's NOT a background update or if it's the first one.
+    // ctx.message.location has 'live_period' if it's a live location.
+    const isLiveUpdate = !!(ctx.message as any).location.live_period;
+    
+    if (!isLiveUpdate) {
+      await ctx.reply(
+        "🔍 Ищу заказы рядом...",
+        Markup.keyboard([
+          [{ text: "🔄 Обновить заказы", request_location: true }],
+          ["⛔ Выйти со смены"]
+        ]).resize()
+      );
+      await sendNearbyOrders(ctx, ctx.from.id);
+    }
   } catch (e) {
     console.error(e);
-    await ctx.reply("❌ Ошибка при обработке локации.");
+    // Silent fail for background location updates to avoid annoying the user
+    // but notify for manual ones.
+    if (!(ctx.message as any).location.live_period) {
+       await ctx.reply("❌ Ошибка при обработке локации.");
+    }
   }
 });
 
