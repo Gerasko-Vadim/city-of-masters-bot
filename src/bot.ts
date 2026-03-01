@@ -259,6 +259,12 @@ bot.action("noop", async (ctx) => {
   await ctx.answerCbQuery("📍 Этот заказ находится слишком далеко", { show_alert: true });
 });
 
+bot.action("find_orders", async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.editMessageReplyMarkup(undefined);
+  await sendNearbyOrders(ctx, ctx.from!.id);
+});
+
 bot.on("callback_query", async (ctx) => {
   if ("data" in ctx.callbackQuery) {
     const data = ctx.callbackQuery.data;
@@ -306,10 +312,27 @@ bot.on("callback_query", async (ctx) => {
           "Failed to assign order:",
           error.response?.data || error.message
         );
-        const errorMessage =
-          error.response?.data?.message || "Не удалось принять заказ";
-        await ctx.answerCbQuery("❌ Ошибка");
-        await ctx.reply(`❌ ${errorMessage}`);
+        const statusCode = error.response?.status;
+        const isTaken = statusCode === 409;
+
+        await ctx.answerCbQuery(
+          isTaken ? "😔 Кто-то успел раньше" : "❌ Ошибка",
+          { show_alert: true }
+        );
+
+        if (isTaken) {
+          await ctx.reply(
+            "😔 <b>Заказ уже занят</b>\n\nКто-то из мастеров успел принять его раньше вас. Попробуйте взять другой заказ!",
+            {
+              parse_mode: "HTML",
+              ...Markup.inlineKeyboard([
+                [Markup.button.callback("🔍 Найти другие заказы", "find_orders")],
+              ]),
+            }
+          );
+        } else {
+          await ctx.reply("❌ Не удалось принять заказ. Попробуйте чуть позже.");
+        }
       }
     } else if (data && data.startsWith("complete_")) {
       const orderId = Number(data.replace("complete_", ""));
