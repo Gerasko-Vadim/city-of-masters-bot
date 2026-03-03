@@ -104,6 +104,33 @@ bot.hears(["⛔ Выйти со смены", "⛔ Я не на смене", "/st
   );
 });
 
+function formatMoney(amount: number): string {
+  return amount.toLocaleString("ru-RU") + " сом";
+}
+
+function formatPhone(phone: string): string {
+  const masked = phone.length > 3 ? phone.slice(0, -3) + "***" : phone + "***";
+  return masked;
+}
+
+function formatOrderCard(order: Order, isAll: boolean): string {
+  const distancePart = order.distance !== undefined
+    ? ` · ${order.distance.toFixed(1)} км`
+    : "";
+  const canAccept = !isAll || (order.distance !== undefined && order.distance <= 15);
+  const distanceWarning = !canAccept ? "\n⚠️ <i>Слишком далеко</i>" : "";
+
+  return (
+    `⚡️ <b>Заказ${distancePart}</b>\n` +
+    `─────────────────\n` +
+    `📍 ${order.address}\n` +
+    `💰 ${formatMoney(order.totalAmount)}\n` +
+    `📋 ${order.description || "Без описания"}\n` +
+    `📞 ${formatPhone(order.phone)}` +
+    distanceWarning
+  );
+}
+
 async function sendNearbyOrders(ctx: any, telegramId: number, radius = 5, isAll = false) {
   try {
     const orders = isAll ? await getAllOrders(telegramId) : await getOrdersNearby(telegramId, radius);
@@ -111,47 +138,39 @@ async function sendNearbyOrders(ctx: any, telegramId: number, radius = 5, isAll 
     if (!orders.length) {
       if (!isAll && radius < 10) {
         await ctx.reply(
-          "📭 В радиусе 5 км заказов не найдено. Хотите расширить поиск?",
+          "📭 Рядом пока нет заказов\n\nРасширить зону поиска?",
           Markup.inlineKeyboard([
-            [Markup.button.callback("🔍 Искать в радиусе 10 км", "radius_10")],
-            [Markup.button.callback("🌐 Показать все заказы", "view_all")],
+            [
+              Markup.button.callback("🔍 10 км", "radius_10"),
+              Markup.button.callback("🌐 Все заказы", "view_all"),
+            ],
           ])
         );
       } else {
-        await ctx.reply("📭 Пока нет доступных заказов.");
+        await ctx.reply("📭 Пока нет доступных заказов. Заказы появятся — вы получите уведомление.");
       }
       return;
     }
 
-    const title = isAll ? "🌐 Все доступные заказы" : `📦 Заказы в радиусе ${radius} км`;
-    await ctx.reply(`<b>${title}:</b>`, { parse_mode: "HTML" });
+    const title = isAll
+      ? `🌐 Все заказы — найдено ${orders.length}`
+      : `🔎 Найдено ${orders.length} ${orders.length === 1 ? "заказ" : "заказа"} рядом`;
+    await ctx.reply(`<b>${title}</b>`, { parse_mode: "HTML" });
 
     for (const order of orders) {
-      const distanceMsg = order.distance !== undefined ? `\n🏃‍♂️ Расстояние: ${order.distance.toFixed(1)} км` : "";
-      const maskedPhone =
-        order.phone.length > 3
-          ? order.phone.slice(0, -3) + "***"
-          : order.phone + "***";
-
-      // If distance > 15km and we are in "view all" mode, don't show accept button
       const canAccept = !isAll || (order.distance !== undefined && order.distance <= 15);
 
-      const buttons = [];
-      if (canAccept) {
-        buttons.push([Markup.button.callback("✅ Принять заказ", `accept_${order.id}`)]);
-      } else {
-        buttons.push([Markup.button.callback("📍 Слишком далеко", "noop")]);
-      }
+      const buttons = canAccept
+        ? [[
+            Markup.button.callback("✅ Принять", `accept_${order.id}`),
+            Markup.button.callback("❌ Пропустить", `skip_${order.id}`),
+          ]]
+        : [[Markup.button.callback("📍 Слишком далеко", "noop")]];
 
-      await ctx.reply(
-        `📍 ${order.address}${distanceMsg}\n💰 ${
-          order.totalAmount
-        } сом\n📝 ${order.description || "Без описания"}\n📞 ${maskedPhone}`,
-        {
-          parse_mode: "HTML",
-          ...Markup.inlineKeyboard(buttons),
-        }
-      );
+      await ctx.reply(formatOrderCard(order, isAll), {
+        parse_mode: "HTML",
+        ...Markup.inlineKeyboard(buttons),
+      });
     }
 
     if (!isAll && radius === 5 && orders.length > 0) {
@@ -206,40 +225,47 @@ bot.on("location", async (ctx) => {
 
     if (activeOrderLine) {
       await ctx.reply(
-        `🚧 У вас уже есть активный заказ!\n\n📍 ${activeOrderLine.address}\nЗавершите его, прежде чем брать новые.`,
-        Markup.inlineKeyboard([
-          Markup.button.callback(
-            "✅ Завершить заказ",
-            `complete_${activeOrderLine.id}`
-          ),
-        ])
+        `🚧 <b>У вас уже есть активный заказ</b>\n\n📍 ${activeOrderLine.address}\n💰 ${formatMoney(activeOrderLine.totalAmount)}\n\nЗавершите его, чтобы брать новые заказы.`,
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback("✅ Завершить заказ", `complete_${activeOrderLine.id}`)],
+          ]),
+        }
       );
       return;
     }
 
-    // Persistent menu for shift management (only sent if not already showing the search message recently)
-    // For live location updates, we don't want to spam messages.
-    // We only reply if it's NOT a background update or if it's the first one.
-    // ctx.message.location has 'live_period' if it's a live location.
-    const isLiveUpdate = !!(ctx.message as any).location.live_period;
-    
-    if (!isLiveUpdate) {
-      await ctx.reply(
-        "🔍 Ищу заказы рядом...",
-        Markup.keyboard([
-          [{ text: "🔄 Обновить заказы", request_location: true }],
-          ["⛔ Выйти со смены"]
-        ]).resize()
-      );
-      await sendNearbyOrders(ctx, ctx.from.id);
-    }
+    // bot.on("location") fires only on the FIRST message (one-time or start of live).
+    // Subsequent live location updates come as edited_message — handled separately below.
+    // So we always show orders here.
+    await ctx.reply(
+      "🔍 Ищу заказы рядом...",
+      Markup.keyboard([
+        [{ text: "🔄 Обновить заказы", request_location: true }],
+        ["⛔ Выйти со смены"],
+      ]).resize()
+    );
+    await sendNearbyOrders(ctx, ctx.from.id);
   } catch (e) {
     console.error(e);
-    // Silent fail for background location updates to avoid annoying the user
-    // but notify for manual ones.
-    if (!(ctx.message as any).location.live_period) {
-       await ctx.reply("❌ Ошибка при обработке локации.");
-    }
+    await ctx.reply("❌ Ошибка при обработке локации.");
+  }
+});
+
+// Live location auto-updates come as edited_message — silently update coordinates only
+bot.on("edited_message", async (ctx) => {
+  const msg = ctx.editedMessage as any;
+  if (!ctx.from || !msg?.location) return;
+
+  try {
+    await updateLocation({
+      telegramId: ctx.from.id,
+      lat: msg.location.latitude,
+      lng: msg.location.longitude,
+    });
+  } catch (e) {
+    console.error("Failed to update live location:", e);
   }
 });
 
@@ -293,16 +319,22 @@ bot.on("callback_query", async (ctx) => {
         const googleLink = `https://www.google.com/maps/search/?api=1&query=${order.lat},${order.lng}`;
 
         await ctx.reply(
-          `✅ <b>Вы приняли заказ!</b>\n\n📍 ${order.address}\n💰 ${
-            order.totalAmount
-          } сом\n📝 ${order.description || "Без описания"}\n📞 ${order.phone}\n👤 ${
-            order.customerName
-          }\n\n🗺 <b>Открыть карту:</b>`,
+          `✅ <b>Заказ принят!</b>\n` +
+          `─────────────────\n` +
+          `📍 ${order.address}\n` +
+          `💰 ${formatMoney(order.totalAmount)}\n` +
+          `📋 ${order.description || "Без описания"}\n` +
+          `📞 ${order.phone}\n` +
+          `👤 ${order.customerName}\n` +
+          `─────────────────\n` +
+          `🗺 Открыть маршрут:`,
           {
             parse_mode: "HTML",
             ...Markup.inlineKeyboard([
-              [Markup.button.url("Google Maps", googleLink)],
-              [Markup.button.url("2GIS", dgisLink)],
+              [
+                Markup.button.url("Google Maps", googleLink),
+                Markup.button.url("2GIS", dgisLink),
+              ],
               [Markup.button.callback("✅ Завершить заказ", `complete_${order.id}`)],
             ]),
           }
@@ -340,10 +372,13 @@ bot.on("callback_query", async (ctx) => {
         await api.post(`/order/${orderId}/complete-bot`, {
           telegramId: ctx.from.id,
         });
-        await ctx.answerCbQuery("✅ Заказ завершен!");
+        await ctx.answerCbQuery("✅ Заказ завершён!");
         await ctx.reply(
-          "🎉 Заказ успешно завершен! Ищу новые заказы рядом...",
-          Markup.keyboard(["🟢 Я на смене", "⛔ Я не на смене"]).resize()
+          "🎉 <b>Отличная работа!</b> Заказ завершён.\n\nИщу новые заказы рядом с вами...",
+          {
+            parse_mode: "HTML",
+            ...Markup.keyboard([["⛔ Выйти со смены"]]).resize(),
+          }
         );
         await sendNearbyOrders(ctx, ctx.from.id);
       } catch (error: any) {
