@@ -119,13 +119,17 @@ function formatOrderCard(order: Order, isAll: boolean): string {
     : "";
   const canAccept = !isAll || (order.distance !== undefined && order.distance <= 15);
   const distanceWarning = !canAccept ? "\n⚠️ <i>Слишком далеко</i>" : "";
+  const categoryLine = order.category ? `🔧 ${order.category}\n` : "";
+  const desc = order.description?.replace(/Тип помощи:/g, "Описание:") ?? "";
+  const descLine = desc ? `📋 ${desc}\n` : "";
 
   return (
     `⚡️ <b>Заказ${distancePart}</b>\n` +
     `─────────────────\n` +
+    `${categoryLine}` +
     `📍 ${order.address}\n` +
     `💰 ${formatMoney(order.totalAmount)}\n` +
-    `📋 ${order.description || "Без описания"}\n` +
+    `${descLine}` +
     `📞 ${formatPhone(order.phone)}` +
     distanceWarning
   );
