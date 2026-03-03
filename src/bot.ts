@@ -12,6 +12,10 @@ import {
 import type { Order } from "./types";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
+
+// Track last time orders were shown per specialist (for live location throttle)
+const lastOrdersShownAt = new Map<number, number>();
+const ORDERS_REFRESH_INTERVAL_MS = 60_000; // 1 minute
 bot.telegram.setMyCommands([
   { command: "start", description: "Запустить бота 🚀" },
   { command: "stop", description: "Завершить смену ⛔" },
@@ -238,7 +242,7 @@ bot.on("location", async (ctx) => {
 
     // bot.on("location") fires only on the FIRST message (one-time or start of live).
     // Subsequent live location updates come as edited_message — handled separately below.
-    // So we always show orders here.
+    lastOrdersShownAt.set(ctx.from.id, Date.now());
     await ctx.reply(
       "🔍 Ищу заказы рядом...",
       Markup.keyboard([
@@ -253,7 +257,7 @@ bot.on("location", async (ctx) => {
   }
 });
 
-// Live location auto-updates come as edited_message — silently update coordinates only
+// Live location auto-updates come as edited_message — update coords + refresh orders every minute
 bot.on("edited_message", async (ctx) => {
   const msg = ctx.editedMessage as any;
   if (!ctx.from || !msg?.location) return;
@@ -264,8 +268,21 @@ bot.on("edited_message", async (ctx) => {
       lat: msg.location.latitude,
       lng: msg.location.longitude,
     });
+
+    const last = lastOrdersShownAt.get(ctx.from.id) ?? 0;
+    if (Date.now() - last < ORDERS_REFRESH_INTERVAL_MS) return;
+
+    // Check active order — don't spam if already working
+    const activeOrder = await api
+      .get<Order>("specialists/active-order", { params: { telegramId: ctx.from.id } })
+      .then((r) => r.data)
+      .catch(() => null);
+    if (activeOrder) return;
+
+    lastOrdersShownAt.set(ctx.from.id, Date.now());
+    await sendNearbyOrders(ctx, ctx.from.id);
   } catch (e) {
-    console.error("Failed to update live location:", e);
+    console.error("Failed to handle live location update:", e);
   }
 });
 
