@@ -350,6 +350,27 @@ bot.on("callback_query", async (ctx) => {
         );
         const statusCode = error.response?.status;
         const isTaken = statusCode === 409;
+        const notRegistered = statusCode === 403 &&
+          error.response?.data?.message === 'NOT_REGISTERED';
+
+        if (notRegistered) {
+          await ctx.answerCbQuery("📝 Сначала заполните профиль", { show_alert: true });
+          await ctx.reply(
+            `📝 <b>Профиль не заполнен</b>\n\n` +
+            `Чтобы принимать заказы, нужно указать ваше ФИО и номер телефона.\n\n` +
+            `Это займёт 30 секунд — нажмите кнопку ниже 👇`,
+            {
+              parse_mode: "HTML",
+              ...Markup.inlineKeyboard([
+                [Markup.button.webApp(
+                  "📝 Заполнить профиль",
+                  `${process.env.MINI_APP_URL!}?mode=master`,
+                )],
+              ]),
+            }
+          );
+          return;
+        }
 
         await ctx.answerCbQuery(
           isTaken ? "😔 Кто-то успел раньше" : "❌ Ошибка",
