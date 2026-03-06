@@ -228,11 +228,22 @@ bot.on("location", async (ctx) => {
       .catch(() => null);
 
     if (activeOrderLine) {
+      const dgisLink = `https://2gis.ru/geo/${activeOrderLine.lng},${activeOrderLine.lat}`;
+      const googleLink = `https://www.google.com/maps/search/?api=1&query=${activeOrderLine.lat},${activeOrderLine.lng}`;
       await ctx.reply(
-        `🚧 <b>У вас уже есть активный заказ</b>\n\n📍 ${activeOrderLine.address}\n💰 ${formatMoney(activeOrderLine.totalAmount)}\n\nЗавершите его, чтобы брать новые заказы.`,
+        `🚧 <b>У вас уже есть активный заказ</b>\n` +
+        `─────────────────\n` +
+        `📍 ${activeOrderLine.address}\n` +
+        `💰 ${formatMoney(activeOrderLine.totalAmount)}\n` +
+        (activeOrderLine.customerName ? `👤 ${activeOrderLine.customerName}\n` : '') +
+        (activeOrderLine.phone ? `📞 <b>${activeOrderLine.phone}</b>\n` : '') +
+        (activeOrderLine.description ? `📋 ${activeOrderLine.description}\n` : '') +
+        `─────────────────\n` +
+        `Завершите его, чтобы брать новые заказы.`,
         {
           parse_mode: "HTML",
           ...Markup.inlineKeyboard([
+            [Markup.button.url("Google Maps", googleLink), Markup.button.url("2GIS", dgisLink)],
             [Markup.button.callback("🚫 Не договорились", `no_deal_${activeOrderLine.id}`)],
             [Markup.button.callback("✅ Завершить заказ", `complete_${activeOrderLine.id}`)],
           ]),
