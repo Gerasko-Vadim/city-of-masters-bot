@@ -364,7 +364,7 @@ bot.on("callback_query", async (ctx) => {
               ...Markup.inlineKeyboard([
                 [Markup.button.webApp(
                   "📝 Заполнить профиль",
-                  `${process.env.MINI_APP_URL!}#master`,
+                  process.env.MASTER_APP_URL!,
                 )],
               ]),
             }
