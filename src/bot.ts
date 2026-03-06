@@ -233,6 +233,7 @@ bot.on("location", async (ctx) => {
         {
           parse_mode: "HTML",
           ...Markup.inlineKeyboard([
+            [Markup.button.callback("🚫 Не договорились", `no_deal_${activeOrderLine.id}`)],
             [Markup.button.callback("✅ Завершить заказ", `complete_${activeOrderLine.id}`)],
           ]),
         }
@@ -339,6 +340,7 @@ bot.on("callback_query", async (ctx) => {
                 Markup.button.url("Google Maps", googleLink),
                 Markup.button.url("2GIS", dgisLink),
               ],
+              [Markup.button.callback("🚫 Не договорились", `no_deal_${order.id}`)],
               [Markup.button.callback("✅ Завершить заказ", `complete_${order.id}`)],
             ]),
           }
@@ -413,6 +415,26 @@ bot.on("callback_query", async (ctx) => {
         );
         await ctx.answerCbQuery("❌ Ошибка");
         await ctx.reply("❌ Не удалось завершить заказ.");
+      }
+    } else if (data && data.startsWith("no_deal_")) {
+      const orderId = Number(data.replace("no_deal_", ""));
+      try {
+        await api.post(`/order/${orderId}/no-deal`, {
+          telegramId: ctx.from.id,
+        });
+        await ctx.answerCbQuery("🚫 Заказ возвращён в поиск");
+        await ctx.reply(
+          "🔄 <b>Не договорились</b>\n\nЗаказ возвращён в очередь — другие мастера получат уведомление.\n\nИщу новые заказы рядом с вами...",
+          {
+            parse_mode: "HTML",
+            ...Markup.keyboard([["⛔ Выйти со смены"]]).resize(),
+          }
+        );
+        await sendNearbyOrders(ctx, ctx.from.id);
+      } catch (error: any) {
+        console.error("Failed no-deal:", error.response?.data || error.message);
+        await ctx.answerCbQuery("❌ Ошибка");
+        await ctx.reply("❌ Не удалось выполнить операцию. Попробуйте ещё раз.");
       }
     } else if (data && data.startsWith("skip_")) {
       await ctx.answerCbQuery("❌ Пропущено");
