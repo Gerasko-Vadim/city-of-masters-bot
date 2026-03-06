@@ -357,19 +357,15 @@ bot.on("callback_query", async (ctx) => {
 
         if (notRegistered) {
           await ctx.answerCbQuery("📝 Сначала заполните профиль", { show_alert: true });
+          const masterAppUrl = process.env.MASTER_APP_URL;
+          const keyboard = masterAppUrl
+            ? Markup.inlineKeyboard([[Markup.button.webApp("📝 Заполнить профиль", masterAppUrl)]])
+            : Markup.inlineKeyboard([[Markup.button.url("📝 Заполнить профиль", "https://t.me/city_masters_bot")]]);
           await ctx.reply(
             `📝 <b>Профиль не заполнен</b>\n\n` +
             `Чтобы принимать заказы, нужно указать ваше ФИО и номер телефона.\n\n` +
             `Это займёт 30 секунд — нажмите кнопку ниже 👇`,
-            {
-              parse_mode: "HTML",
-              ...Markup.inlineKeyboard([
-                [Markup.button.webApp(
-                  "📝 Заполнить профиль",
-                  process.env.MASTER_APP_URL!,
-                )],
-              ]),
-            }
+            { parse_mode: "HTML", ...keyboard }
           );
           return;
         }
